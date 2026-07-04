@@ -19,6 +19,8 @@ export default function Login() {
         localStorage.setItem('token', res.data.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.data.user));
         navigate('/');
+      } else {
+        setError('Login failed. Please check your credentials.');
       }
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Login failed. Please check your credentials.');

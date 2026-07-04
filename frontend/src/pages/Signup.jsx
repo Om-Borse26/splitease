@@ -20,6 +20,8 @@ export default function Signup() {
         localStorage.setItem('token', res.data.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.data.user));
         navigate('/');
+      } else {
+        setError('Signup failed. Please try again.');
       }
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Signup failed. Please try again.');

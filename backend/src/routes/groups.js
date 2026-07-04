@@ -89,10 +89,13 @@ router.post('/:id/members', authMiddleware, async (req, res, next) => {
     }
 
     const added = [];
+    const skipped = [];
     for (const userId of user_ids) {
       try {
+        await query('BEGIN');
         await query('INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)', [req.params.id, userId]);
         await query('INSERT INTO balances (group_id, user_id, balance) VALUES ($1, $2, 0) ON CONFLICT DO NOTHING', [req.params.id, userId]);
+        await query('COMMIT');
         
         const uRes = await query('SELECT username FROM users WHERE id = $1', [userId]);
         const username = uRes.rows[0]?.username;
@@ -107,11 +110,12 @@ router.post('/:id/members', authMiddleware, async (req, res, next) => {
           });
         }
       } catch (e) {
-        // likely duplicate key
+        await query('ROLLBACK');
+        skipped.push({ user_id: userId, reason: e.message });
       }
     }
 
-    res.status(201).json({ success: true, data: { added_members: added, skipped: [] } });
+    res.status(201).json({ success: true, data: { added_members: added, skipped } });
   } catch (err) {
     next(err);
   }

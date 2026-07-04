@@ -20,7 +20,7 @@ const httpServer = createServer(app);
 
 // Sentry Init
 Sentry.init({
-  dsn: process.env.SENTRY_DSN || 'https://c704615c3b2ec8ee54c50b8653b61816@o4511678046601216.ingest.us.sentry.io/4511678141956096',
+  dsn: process.env.SENTRY_DSN,
   tracesSampleRate: 1.0,
 });
 
