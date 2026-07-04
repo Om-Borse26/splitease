@@ -86,7 +86,7 @@ export const expenseValidation = [
     .isDecimal({ decimal_digits: '0,2' })
     .withMessage('Amount must be a positive number')
     .toFloat()
-    .isPositive()
+    .isFloat({ gt: 0 })
     .withMessage('Amount must be greater than 0'),
   body('paid_by')
     .isUUID()

@@ -2,8 +2,16 @@ import { jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
 
+const mockQuery = jest.fn();
 jest.unstable_mockModule('../src/db/client.js', () => ({
-  query: jest.fn(),
+  query: mockQuery,
+  default: {
+    connect: jest.fn().mockResolvedValue({
+      query: mockQuery,
+      release: jest.fn(),
+    }),
+    query: mockQuery
+  }
 }));
 jest.unstable_mockModule('../src/middleware/auth.js', () => ({
   authMiddleware: (req, res, next) => {
@@ -29,6 +37,7 @@ describe('Expenses Routes', () => {
   });
 
   it('POST /api/groups/:id/expenses - success', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ 1: 1 }] }); // membership check
     db.query.mockResolvedValueOnce({}); // BEGIN
     db.query.mockResolvedValueOnce({ rows: [{ id: 'ex-1', amount: 100 }] }); // INSERT expense
     db.query.mockResolvedValueOnce({ rows: [{ user_id: 'user-1' }, { user_id: 'user-2' }] }); // GET members
@@ -60,6 +69,7 @@ describe('Expenses Routes', () => {
   });
 
   it('GET /api/groups/:id/expenses - success', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ 1: 1 }] }); // membership check
     db.query.mockResolvedValueOnce({ 
       rows: [{ id: 'ex-1', description: 'Dinner', amount: 100, paid_by_username: 'testuser' }] 
     }); // Expenses

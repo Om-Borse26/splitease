@@ -4,8 +4,17 @@ import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
+process.env.JWT_SECRET = 'test-secret';
+const mockQuery = jest.fn();
 jest.unstable_mockModule('../src/db/client.js', () => ({
-  query: jest.fn(),
+  query: mockQuery,
+  default: {
+    connect: jest.fn().mockResolvedValue({
+      query: mockQuery,
+      release: jest.fn(),
+    }),
+    query: mockQuery
+  }
 }));
 
 const db = await import('../src/db/client.js');

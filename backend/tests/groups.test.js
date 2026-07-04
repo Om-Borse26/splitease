@@ -2,8 +2,16 @@ import { jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
 
+const mockQuery = jest.fn();
 jest.unstable_mockModule('../src/db/client.js', () => ({
-  query: jest.fn(),
+  query: mockQuery,
+  default: {
+    connect: jest.fn().mockResolvedValue({
+      query: mockQuery,
+      release: jest.fn(),
+    }),
+    query: mockQuery
+  }
 }));
 jest.unstable_mockModule('../src/middleware/auth.js', () => ({
   authMiddleware: (req, res, next) => {
@@ -49,6 +57,7 @@ describe('Groups Routes', () => {
   });
 
   it('GET /api/groups/:id - success', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ 1: 1 }] }); // membership check
     db.query.mockResolvedValueOnce({ rows: [{ id: 'group-1', name: 'Trip' }] }); // group
     db.query.mockResolvedValueOnce({ rows: [{ id: 'user-1', username: 'testuser' }] }); // members
 
@@ -60,6 +69,7 @@ describe('Groups Routes', () => {
   });
 
   it('GET /api/groups/:id - not found', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ 1: 1 }] }); // membership check
     db.query.mockResolvedValueOnce({ rows: [] }); // group not found
 
     const res = await request(app).get('/api/groups/group-not-found');

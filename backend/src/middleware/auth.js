@@ -8,7 +8,7 @@ export const authMiddleware = (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-for-hackathon');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded; // { id, email, username }
     next();
   } catch (err) {

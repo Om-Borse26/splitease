@@ -40,7 +40,7 @@ router.post('/signup', async (req, res, next) => {
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET || 'fallback-secret-for-hackathon', { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
       success: true,
@@ -71,7 +71,7 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET || 'fallback-secret-for-hackathon', { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
       success: true,

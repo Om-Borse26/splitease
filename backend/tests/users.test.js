@@ -2,8 +2,17 @@ import { jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
 
+process.env.JWT_SECRET = 'test-secret';
+const mockQuery = jest.fn();
 jest.unstable_mockModule('../src/db/client.js', () => ({
-  query: jest.fn(),
+  query: mockQuery,
+  default: {
+    connect: jest.fn().mockResolvedValue({
+      query: mockQuery,
+      release: jest.fn(),
+    }),
+    query: mockQuery
+  }
 }));
 jest.unstable_mockModule('../src/middleware/auth.js', () => ({
   authMiddleware: (req, res, next) => {

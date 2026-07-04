@@ -1,18 +1,17 @@
 import express from 'express';
-import { query } from '../db/client.js';
+import pool, { query } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
 
-const router = express.Router({ mergeParams: true }); // Allows access to group /:id if mounted that way
+const router = express.Router({ mergeParams: true });
+
+const checkMembership = async (groupId, userId) => {
+  const result = await query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [groupId, userId]);
+  return result.rows.length > 0;
+};
 
 router.post('/', authMiddleware, async (req, res, next) => {
-  // Path is typically /api/groups/:id/expenses, so group ID is in req.params.id
-  // but to keep routing clean, we map /api/groups/:id/expenses to this router in index.js, OR we map /api/expenses globally. 
-  // Let's assume we map in index.js via app.use('/api/groups/:id/expenses', expensesRoutes) or similar. 
-  // Actually, in index.js I mapped app.use('/api/expenses', expensesRoutes). So wait, the API contract says: POST /api/groups/:id/expenses
+  let client;
   try {
-    const { group_id } = req.body; // Wait, API Contract POST /api/groups/:id/expenses doesn't have group_id in body.
-    // If it's mounted at /api/expenses, we need group_id. Let's adjust index.js or just read group_id from body if we mount at /api/expenses.
-    // The contract: POST /api/groups/:id/expenses
     const groupId = req.params.id || req.body.group_id; 
     const { description, amount, paid_by, split_type } = req.body;
 
@@ -20,38 +19,35 @@ router.post('/', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing fields' } });
     }
 
-    await query('BEGIN');
+    if (!await checkMembership(groupId, req.user.id)) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this group' } });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
     
     // Create expense
-    const exRes = await query(
+    const exRes = await client.query(
       'INSERT INTO expenses (group_id, description, amount, paid_by, split_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, group_id, description, amount, paid_by, created_at',
       [groupId, description, amount, paid_by, split_type || 'equal']
     );
     const expense = exRes.rows[0];
 
     // Get all group members for equal split
-    const mRes = await query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
+    const mRes = await client.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
     const members = mRes.rows.map(r => r.user_id);
     const splitAmount = parseFloat((amount / members.length).toFixed(2));
     
-    // We might have a penny rounding error, but this is a hackathon MVP.
     const splits = [];
-
     for (const userId of members) {
-      await query(
+      await client.query(
         'INSERT INTO expense_splits (expense_id, user_id, amount) VALUES ($1, $2, $3)',
         [expense.id, userId, splitAmount]
       );
       
-      const uRes = await query('SELECT username FROM users WHERE id = $1', [userId]);
+      const uRes = await client.query('SELECT username FROM users WHERE id = $1', [userId]);
       splits.push({ user_id: userId, username: uRes.rows[0]?.username, amount: splitAmount });
 
-      // Update balances
-      // If I am the payer, my balance increases by (amount - splitAmount).
-      // Wait, balance = positive means owed money. 
-      // If I pay $120 for 4 people, I am owed $90. My balance += 90.
-      // Other 3 people owe $30. Their balance -= 30.
-      // Net balance (positive = owed money, negative = owes money)
       let balanceChange = 0;
       if (userId === paid_by) {
         balanceChange = parseFloat(amount) - splitAmount;
@@ -59,19 +55,17 @@ router.post('/', authMiddleware, async (req, res, next) => {
         balanceChange = -splitAmount;
       }
 
-      await query(
+      await client.query(
         'UPDATE balances SET balance = balance + $1 WHERE group_id = $2 AND user_id = $3',
         [balanceChange, groupId, userId]
       );
     }
 
-    await query('COMMIT');
+    await client.query('COMMIT');
 
-    // Broadcast expense_added
     if (req.io) {
       req.io.to(groupId).emit('expense_added', { group_id: groupId, expense });
       
-      // Also broadcast updated balances
       const bRes = await query(`
         SELECT b.user_id, u.username, b.balance
         FROM balances b JOIN users u ON b.user_id = u.id
@@ -83,8 +77,10 @@ router.post('/', authMiddleware, async (req, res, next) => {
 
     res.status(201).json({ success: true, data: { expense, splits } });
   } catch (err) {
-    await query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     next(err);
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -92,6 +88,10 @@ router.get('/', authMiddleware, async (req, res, next) => {
   try {
     const groupId = req.params.id || req.query.group_id;
     if (!groupId) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing group_id' } });
+
+    if (!await checkMembership(groupId, req.user.id)) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this group' } });
+    }
 
     const exRes = await query(`
       SELECT e.*, u.username as paid_by_username
@@ -123,19 +123,26 @@ router.get('/', authMiddleware, async (req, res, next) => {
   }
 });
 
-// DELETE /api/groups/:id/expenses/:expenseId
 router.delete('/:expenseId', authMiddleware, async (req, res, next) => {
+  let client;
   try {
-    // Left as an exercise or basic implementation for MVP:
-    // 1. Revert balances
-    // 2. Delete expense
-    await query('BEGIN');
+    client = await pool.connect();
+    await client.query('BEGIN');
     
-    const exRes = await query('SELECT * FROM expenses WHERE id = $1', [req.params.expenseId]);
-    if (exRes.rows.length === 0) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Expense not found' } });
+    const exRes = await client.query('SELECT * FROM expenses WHERE id = $1', [req.params.expenseId]);
+    if (exRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Expense not found' } });
+    }
     const expense = exRes.rows[0];
 
-    const splits = await query('SELECT * FROM expense_splits WHERE expense_id = $1', [expense.id]);
+    // Check IDOR
+    if (!await checkMembership(expense.group_id, req.user.id)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this group' } });
+    }
+
+    const splits = await client.query('SELECT * FROM expense_splits WHERE expense_id = $1', [expense.id]);
     
     for (const split of splits.rows) {
       let balanceChange = 0;
@@ -144,15 +151,14 @@ router.delete('/:expenseId', authMiddleware, async (req, res, next) => {
       } else {
         balanceChange = parseFloat(split.amount);
       }
-      await query('UPDATE balances SET balance = balance + $1 WHERE group_id = $2 AND user_id = $3', [balanceChange, expense.group_id, split.user_id]);
+      await client.query('UPDATE balances SET balance = balance + $1 WHERE group_id = $2 AND user_id = $3', [balanceChange, expense.group_id, split.user_id]);
     }
 
-    await query('DELETE FROM expenses WHERE id = $1', [expense.id]);
-    await query('COMMIT');
+    await client.query('DELETE FROM expenses WHERE id = $1', [expense.id]);
+    await client.query('COMMIT');
 
     if (req.io) {
       req.io.to(expense.group_id).emit('expense_removed', { group_id: expense.group_id, expense_id: expense.id });
-      // Broadcast updated balances
       const bRes = await query(`
         SELECT b.user_id, u.username, b.balance
         FROM balances b JOIN users u ON b.user_id = u.id
@@ -163,8 +169,10 @@ router.delete('/:expenseId', authMiddleware, async (req, res, next) => {
 
     res.json({ success: true, message: 'Expense deleted successfully' });
   } catch (err) {
-    await query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     next(err);
+  } finally {
+    if (client) client.release();
   }
 });
 
