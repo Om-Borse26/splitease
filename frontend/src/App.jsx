@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import Login from './pages/Login';
@@ -23,21 +23,66 @@ const PrivateRoute = ({ children }) => {
 };
 
 function App() {
+  const isLoggedIn = !!localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-100 text-gray-900 font-sans">
-        <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-blue-600">SplitEase</h1>
-          {localStorage.getItem('token') && (
-            <button 
-              onClick={() => { localStorage.clear(); window.location.href='/login'; }}
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              Logout
-            </button>
+      <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
+        {/* Glassmorphic Header */}
+        <header style={{
+          background: 'rgba(15, 23, 42, 0.8)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          padding: '0 1.5rem',
+          height: '60px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.5rem' }}>💸</span>
+            <h1 style={{
+              fontSize: '1.25rem',
+              fontWeight: 800,
+              background: 'linear-gradient(135deg, #818cf8, #c084fc)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              margin: 0,
+            }}>SplitEase</h1>
+          </div>
+
+          {isLoggedIn && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ fontSize: '0.8rem', color: 'rgba(241,245,249,0.5)' }}>
+                {user.username}
+              </span>
+              <button
+                id="logout-btn"
+                onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#94a3b8',
+                  background: 'none',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '0.375rem',
+                  padding: '0.3rem 0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => e.target.style.color = '#f1f5f9'}
+                onMouseLeave={e => e.target.style.color = '#94a3b8'}
+              >
+                Logout
+              </button>
+            </div>
           )}
         </header>
-        <main className="p-4 max-w-4xl mx-auto">
+
+        <main style={{ padding: '2rem 1.5rem', maxWidth: '960px', margin: '0 auto' }}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />

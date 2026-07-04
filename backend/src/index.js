@@ -21,15 +21,8 @@ const httpServer = createServer(app);
 // Sentry Init
 Sentry.init({
   dsn: process.env.SENTRY_DSN || 'https://c704615c3b2ec8ee54c50b8653b61816@o4511678046601216.ingest.us.sentry.io/4511678141956096',
-  integrations: [
-    new Sentry.Integrations.Http({ tracing: true }),
-    new Sentry.Integrations.Express({ app }),
-  ],
   tracesSampleRate: 1.0,
 });
-
-app.use(Sentry.Handlers.requestHandler());
-app.use(Sentry.Handlers.tracingHandler());
 
 app.use(cors());
 app.use(express.json());
@@ -51,7 +44,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupsRoutes);
 app.use('/api/users', usersRoutes);
 
-app.use(Sentry.Handlers.errorHandler());
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

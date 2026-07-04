@@ -42,7 +42,7 @@ async function seed() {
   
   // Splits
   await query('INSERT INTO expense_splits (expense_id, user_id, amount) VALUES ($1, $2, $3), ($1, $4, $5), ($1, $6, $7)',
-    [exId, alice, splitAmount, exId, bob, splitAmount, exId, charlie, splitAmount]);
+    [exId, alice, splitAmount, bob, splitAmount, charlie, splitAmount]);
     
   // Update Balances
   // Alice paid 120. Her share is 40. She is owed 80. (Balance +80)
