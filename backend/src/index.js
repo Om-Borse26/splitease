@@ -10,7 +10,6 @@ import { setupSockets } from './sockets/index.js';
 // Routes
 import authRoutes from './routes/auth.js';
 import groupsRoutes from './routes/groups.js';
-import expensesRoutes from './routes/expenses.js';
 import usersRoutes from './routes/users.js';
 
 dotenv.config();
