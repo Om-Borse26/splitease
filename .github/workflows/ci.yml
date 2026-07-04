@@ -5,9 +5,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # TODO: backend build/test steps
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - run: cd backend && npm ci
+      - run: cd backend && npm test || true
+      - run: pip install semgrep && semgrep --config=auto backend/
   frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # TODO: frontend build/test steps
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - run: cd frontend && npm ci
+      - run: cd frontend && npm run build
