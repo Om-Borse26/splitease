@@ -131,6 +131,28 @@
 
 ---
 
+### Users
+
+#### 4. GET /api/users
+**Headers:** `Authorization: Bearer <token>`
+**Query Parameters:** `?search=john` (optional, searches username or email)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "email": "user@example.com",
+      "username": "john_doe"
+    }
+  ]
+}
+```
+
+---
+
 ### Groups
 
 #### 4. POST /api/groups
